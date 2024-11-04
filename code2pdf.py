@@ -7,14 +7,18 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.units import mm
 from matplotlib import font_manager
+import pathspec  # Import the pathspec library
 
 def register_custom_font(font_name):
     """Registers the specified font from the system."""
     font_path = None
     for font in font_manager.findSystemFonts(fontpaths=None, fontext='ttf'):
-        if font_name in font_manager.get_font(font).family_name:
-            font_path = font
-            break
+        try:
+            if font_name in font_manager.get_font(font).family_name:
+                font_path = font
+                break
+        except RuntimeError:
+            continue  # Ignore any fonts that cause errors
 
     if font_path:
         pdfmetrics.registerFont(TTFont(font_name, font_path))
@@ -25,44 +29,73 @@ def register_custom_font(font_name):
 
     return font_name
 
-def filter_directories(dirs):
-    """Filters out directories starting with '.' and '__pycache__'."""
-    filtered_dirs = [d for d in dirs if not (d.startswith('.') or d == '__pycache__')]
-    excluded_dirs = [d for d in dirs if d not in filtered_dirs]
-    if excluded_dirs:
-        print(f"Excluding directories: {excluded_dirs}")
-    return filtered_dirs
+def normalize_path(path):
+    """Normalize path separators to '/'."""
+    return path.replace(os.sep, '/')
+
+def parse_ignore_file(root_dir):
+    """Parses the .ignore file and returns a PathSpec object."""
+    ignore_path = os.path.join(root_dir, '.ignore')
+    if not os.path.exists(ignore_path):
+        return None
+
+    with open(ignore_path, 'r', encoding='utf-8') as f:
+        ignore_patterns = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+    spec = pathspec.PathSpec.from_lines('gitignore', ignore_patterns)
+    return spec
+
+def should_ignore(path, spec):
+    """Checks if the given path matches any of the ignore patterns."""
+    if spec is None:
+        return False
+    # Normalize the path before matching
+    path = normalize_path(path)
+    # Handle the case where the path is '.'
+    if path == '.':
+        path = ''
+    return spec.match_file(path)
+
+def filter_directories(dirs, current_path, spec, root_dir):
+    """Filters out directories based on the ignore patterns."""
+    dirs_to_keep = []
+    for d in dirs:
+        dir_path = os.path.join(current_path, d)
+        rel_path = os.path.relpath(dir_path, root_dir)
+        rel_path = normalize_path(rel_path)
+        # Add a trailing slash to directories when matching
+        rel_path_with_slash = rel_path + '/'
+        if not should_ignore(rel_path, spec) and not should_ignore(rel_path_with_slash, spec):
+            dirs_to_keep.append(d)
+        else:
+            print(f"Excluding directory: {rel_path}")
+    dirs[:] = dirs_to_keep  # Modify dirs in-place to affect os.walk traversal
 
 def build_directory_tree(root_dir):
     """Builds a directory tree structure."""
     dir_tree = []
     file_paths = []
 
-    def should_exclude(path, excluded_dirs):
-        """Check if the given path is in an excluded directory."""
-        for excluded_dir in excluded_dirs:
-            if path.startswith(excluded_dir):
-                return True
-        return False
+    spec = parse_ignore_file(root_dir)
 
-    excluded_dirs = set()
     for current_path, dirs, files in os.walk(root_dir):
         # Filter out unwanted directories
-        dirs[:] = filter_directories(dirs)
+        filter_directories(dirs, current_path, spec, root_dir)
         relative_path = os.path.relpath(current_path, root_dir)
-        indent_level = relative_path.count(os.sep)
-        dir_tree.append(('    ' * indent_level) + os.path.basename(current_path) + '/')
-
-        # Track excluded directories
-        for dir in dirs:
-            if dir.startswith('.') or dir == '__pycache__':
-                excluded_dirs.add(os.path.join(relative_path, dir))
+        relative_path = normalize_path(relative_path)
+        if relative_path == '.':
+            indent_level = 0
+            dir_name = '/'
+        else:
+            indent_level = relative_path.count('/')
+            dir_name = os.path.basename(current_path) + '/'
+        dir_tree.append(('    ' * indent_level) + dir_name)
 
         # Add files
         for file in files:
             file_path = os.path.join(current_path, file)
             file_relative_path = os.path.relpath(file_path, root_dir)
-            if not should_exclude(file_relative_path, excluded_dirs):
+            file_relative_path = normalize_path(file_relative_path)
+            if not should_ignore(file_relative_path, spec):
                 dir_tree.append(('    ' * (indent_level + 1)) + file)
                 file_paths.append(file_relative_path)
             else:
@@ -149,7 +182,7 @@ def main():
 
     project_directory = args.project_directory
     output_pdf = args.output_pdf
-    font_name = 'WenQuanYi Micro Hei'
+    font_name = 'WenQuanYi Micro Hei'  # Change this to a font available on your system if needed
 
     # Register the custom font from the system
     font_name = register_custom_font(font_name)
@@ -165,7 +198,7 @@ def main():
     # Write the directory tree to the PDF
     text_pos = write_directory_tree_to_pdf(c, dir_tree, font_name, font_size, text_pos)
 
-    # Write the files content to the PDF
+    # Write the files' content to the PDF
     text_pos = write_files_to_pdf(c, project_directory, file_paths, font_name, font_size, text_pos)
 
     # Save the PDF
