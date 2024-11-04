@@ -6,11 +6,23 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.units import mm
+from matplotlib import font_manager
 
-def register_custom_font(font_path):
-    """Registers the DejaVuSansMono.ttf font."""
-    font_name = 'DejaVuSansMono'
-    pdfmetrics.registerFont(TTFont(font_name, font_path))
+def register_custom_font(font_name):
+    """Registers the specified font from the system."""
+    font_path = None
+    for font in font_manager.findSystemFonts(fontpaths=None, fontext='ttf'):
+        if font_name in font_manager.get_font(font).family_name:
+            font_path = font
+            break
+
+    if font_path:
+        pdfmetrics.registerFont(TTFont(font_name, font_path))
+        print(f"Font '{font_name}' registered from system path: {font_path}")
+    else:
+        print(f"Font '{font_name}' not found in the system.")
+        sys.exit(1)
+
     return font_name
 
 def filter_directories(dirs):
@@ -98,14 +110,10 @@ def main():
 
     project_directory = args.project_directory
     output_pdf = args.output_pdf
-    font_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'DejaVuSansMono.ttf')
+    font_name = 'WenQuanYi Micro Hei'
 
-    if not os.path.exists(font_path):
-        print(f"Font file 'DejaVuSansMono.ttf' not found in the script directory.")
-        sys.exit(1)
-
-    # Register the custom font
-    font_name = register_custom_font(font_path)
+    # Register the custom font from the system
+    font_name = register_custom_font(font_name)
 
     # Build the directory tree and get the list of file paths
     dir_tree, file_paths = build_directory_tree(project_directory)
