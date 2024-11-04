@@ -63,8 +63,25 @@ def write_directory_tree_to_pdf(c, dir_tree, font_name, font_size, text_pos):
     c.showPage()
     return text_pos
 
+def wrap_text(text, max_width, font_name, font_size, c):
+    """Wraps text to fit within a given width."""
+    words = text.split()
+    lines = []
+    current_line = ""
+    for word in words:
+        test_line = current_line + word + " "
+        if c.stringWidth(test_line, font_name, font_size) > max_width:
+            lines.append(current_line.strip())
+            current_line = word + " "
+        else:
+            current_line = test_line
+    if current_line:
+        lines.append(current_line.strip())
+    return lines
+
 def write_files_to_pdf(c, root_dir, file_paths, font_name, font_size, text_pos):
     """Writes the contents of each file to the PDF."""
+    max_width = A4[0] - 40 * mm  # 20mm margin on both sides
     for file_relative_path in file_paths:
         file_path = os.path.join(root_dir, file_relative_path)
         # Write the file path as a heading
@@ -82,12 +99,14 @@ def write_files_to_pdf(c, root_dir, file_paths, font_name, font_size, text_pos):
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 for line in f:
-                    c.drawString(text_pos[0], text_pos[1], line.rstrip())
-                    text_pos[1] -= font_size * 1.2
-                    if text_pos[1] < 50 * mm:
-                        c.showPage()
-                        c.setFont(font_name, font_size)
-                        text_pos[1] = A4[1] - 50 * mm
+                    wrapped_lines = wrap_text(line.rstrip(), max_width, font_name, font_size, c)
+                    for wrapped_line in wrapped_lines:
+                        c.drawString(text_pos[0], text_pos[1], wrapped_line)
+                        text_pos[1] -= font_size * 1.2
+                        if text_pos[1] < 50 * mm:
+                            c.showPage()
+                            c.setFont(font_name, font_size)
+                            text_pos[1] = A4[1] - 50 * mm
         except Exception as e:
             # Handle any errors reading the file
             c.drawString(text_pos[0], text_pos[1], f"Error reading file: {e}")
