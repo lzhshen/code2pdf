@@ -27,13 +27,25 @@ def register_custom_font(font_name):
 
 def filter_directories(dirs):
     """Filters out directories starting with '.' and '__pycache__'."""
-    return [d for d in dirs if not (d.startswith('.') or d == '__pycache__')]
+    filtered_dirs = [d for d in dirs if not (d.startswith('.') or d == '__pycache__')]
+    excluded_dirs = [d for d in dirs if d not in filtered_dirs]
+    if excluded_dirs:
+        print(f"Excluding directories: {excluded_dirs}")
+    return filtered_dirs
 
 def build_directory_tree(root_dir):
     """Builds a directory tree structure."""
     dir_tree = []
     file_paths = []
 
+    def should_exclude(path, excluded_dirs):
+        """Check if the given path is in an excluded directory."""
+        for excluded_dir in excluded_dirs:
+            if path.startswith(excluded_dir):
+                return True
+        return False
+
+    excluded_dirs = set()
     for current_path, dirs, files in os.walk(root_dir):
         # Filter out unwanted directories
         dirs[:] = filter_directories(dirs)
@@ -41,12 +53,20 @@ def build_directory_tree(root_dir):
         indent_level = relative_path.count(os.sep)
         dir_tree.append(('    ' * indent_level) + os.path.basename(current_path) + '/')
 
+        # Track excluded directories
+        for dir in dirs:
+            if dir.startswith('.') or dir == '__pycache__':
+                excluded_dirs.add(os.path.join(relative_path, dir))
+
         # Add files
         for file in files:
             file_path = os.path.join(current_path, file)
             file_relative_path = os.path.relpath(file_path, root_dir)
-            dir_tree.append(('    ' * (indent_level + 1)) + file)
-            file_paths.append(file_relative_path)
+            if not should_exclude(file_relative_path, excluded_dirs):
+                dir_tree.append(('    ' * (indent_level + 1)) + file)
+                file_paths.append(file_relative_path)
+            else:
+                print(f"Excluding file: {file_relative_path}")
 
     return dir_tree, file_paths
 
