@@ -157,10 +157,10 @@ def write_files_to_pdf(c, root_dir, file_paths, font_name, font_size, text_pos):
                     # Remove trailing whitespace and newlines
                     line_content = line.rstrip()
                     # Wrap the line content while preserving indentation
-                    wrapped_lines = wrap_text(line_content, max_width - indent_level * 2, font_name, font_size, c)
+                    wrapped_lines = wrap_text(line_content, max_width - indent_level * 4, font_name, font_size, c)
                     for wrapped_line in wrapped_lines:
                         # Draw the line with the correct indentation
-                        c.drawString(text_pos[0] + indent_level * 2, text_pos[1], wrapped_line)
+                        c.drawString(text_pos[0] + indent_level * 4, text_pos[1], wrapped_line)
                         text_pos[1] -= font_size * 1.2
                         if text_pos[1] < 50 * mm:
                             c.showPage()
