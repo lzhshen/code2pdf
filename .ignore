@@ -37,3 +37,9 @@ coverage.xml
 poetry.lock
 pyproject.toml
 *.dist-info/
+
+# 忽略web等目录
+web/
+rag/res/
+deepdoc/vision/ocr.res
+deepdoc/parser/resume/entities/res/
